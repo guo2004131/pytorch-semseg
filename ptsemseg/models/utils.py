@@ -8,8 +8,8 @@ class conv2DBatchNorm(nn.Module):
         super(conv2DBatchNorm, self).__init__()
 
         self.cb_unit = nn.Sequential(nn.Conv2d(int(in_channels), int(n_filters), kernel_size=k_size,
-                                               padding=padding, stride=stride, bias=bias),
-                                 nn.BatchNorm2d(int(n_filters)),)
+                                               padding=padding, stride=stride, bias=bias), nn.BatchNorm2d(int(n_filters)),)
+
 
     def forward(self, inputs):
         outputs = self.cb_unit(inputs)
@@ -21,8 +21,8 @@ class deconv2DBatchNorm(nn.Module):
         super(deconv2DBatchNorm, self).__init__()
 
         self.dcb_unit = nn.Sequential(nn.ConvTranspose2d(int(in_channels), int(n_filters), kernel_size=k_size,
-                                               padding=padding, stride=stride, bias=bias),
-                                 nn.BatchNorm2d(int(n_filters)),)
+                                                         padding=padding, stride=stride, bias=bias),
+                                      nn.BatchNorm2d(int(n_filters)),)
 
     def forward(self, inputs):
         outputs = self.dcb_unit(inputs)
@@ -33,10 +33,9 @@ class conv2DBatchNormRelu(nn.Module):
     def __init__(self, in_channels, n_filters, k_size,  stride, padding, bias=True):
         super(conv2DBatchNormRelu, self).__init__()
 
-        self.cbr_unit = nn.Sequential(nn.Conv2d(int(in_channels), int(n_filters), kernel_size=k_size,
-                                                padding=padding, stride=stride, bias=bias),
-                                 nn.BatchNorm2d(int(n_filters)),
-                                 nn.ReLU(inplace=True),)
+        self.cbr_unit = nn.Sequential(nn.Conv2d(int(in_channels), int(n_filters),kernel_size=k_size, padding=padding,
+                                                stride=stride, bias=bias), nn.BatchNorm2d(int(n_filters)),
+                                      nn.ReLU(inplace=True),)
 
     def forward(self, inputs):
         outputs = self.cbr_unit(inputs)
@@ -189,9 +188,9 @@ class residualBottleneck(nn.Module):
 
     def __init__(self, in_channels, n_filters, stride=1, downsample=None):
         super(residualBottleneck, self).__init__()
-        self.convbn1 = nn.Conv2DBatchNorm(in_channels,  n_filters, k_size=1, bias=False)
-        self.convbn2 = nn.Conv2DBatchNorm(n_filters,  n_filters, k_size=3, padding=1, stride=stride, bias=False)
-        self.convbn3 = nn.Conv2DBatchNorm(n_filters,  n_filters * 4, k_size=1, bias=False)
+        self.convbn1 = conv2DBatchNorm(in_channels,  n_filters, k_size=1, stride=1, padding=0, bias=False)
+        self.convbn2 = conv2DBatchNorm(n_filters,  n_filters, k_size=3,  stride=stride, padding=1, bias=False)
+        self.convbn3 = conv2DBatchNorm(n_filters,  n_filters * self.expansion, k_size=1, stride=1, padding=0, bias=False)
         self.relu = nn.ReLU(inplace=True)
         self.downsample = downsample
         self.stride = stride
@@ -217,13 +216,14 @@ class linknetUp(nn.Module):
         super(linknetUp, self).__init__()
 
         # B, 2C, H, W -> B, C/2, H, W
-        self.convbnrelu1 = conv2DBatchNormRelu(in_channels, n_filters/2, k_size=1, stride=1, padding=1)
 
-        # B, C/2, H, W -> B, C/2, H, W
-        self.deconvbnrelu2 = nn.deconv2DBatchNormRelu(n_filters/2, n_filters/2, k_size=3,  stride=2, padding=0,)
+        self.convbnrelu1 = conv2DBatchNormRelu(in_channels, n_filters/2, k_size=1, stride=1, padding=0)
 
-        # B, C/2, H, W -> B, C, H, W
-        self.convbnrelu3 = conv2DBatchNormRelu(n_filters/2, n_filters, k_size=1, stride=1, padding=1)
+        # B, C/2, H, W -> B, C/2, 2H, 2W
+        self.deconvbnrelu2 = deconv2DBatchNormRelu(n_filters/2, n_filters/2, k_size=2,  stride=2, padding=0)
+
+        # B, C/2, 2H, 2W -> B, C, 2H, 2W
+        self.convbnrelu3 = conv2DBatchNormRelu(n_filters/2, n_filters, k_size=1, stride=1, padding=0)
 
     def forward(self, x):
         x = self.convbnrelu1(x)
